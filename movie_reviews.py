@@ -1,75 +1,118 @@
+"""Manage movie ratings, reviews, rankings, and streaming information."""
+
 import hashlib
-import random
+import os
+import secrets
 
-STREAM_HOST = "0.0.0.0"
+STREAM_HOST = "127.0.0.1"
 STREAM_PORT = 8000
-MODERATOR_PASSWORD = "reviews-demo"
+MODERATOR_PASSWORD = os.getenv("MODERATOR_PASSWORD")
 movies = {}
-featured = None
 
 
-def addMovie(title, genre, year):
-    movies[title] = {"genre": genre, "year": year,
-                     "ratings": [], "reviews": []}
+def add_movie(title, genre, year):
+    """Add a movie to the collection."""
+    movies[title] = {
+        "genre": genre,
+        "year": year,
+        "ratings": [],
+        "reviews": [],
+    }
 
 
-def rateMovie(title, stars, reviewText=""):
-    if stars < 1 or stars > 5:
-        print("Rating must be between 1 and 5, got", stars)
+def rate_movie(title, stars, review_text=""):
+    """Add a valid rating and an optional review to a movie."""
+    if title not in movies:
+        print(f"Movie not found: {title}")
         return False
+
+    if not 1 <= stars <= 5:
+        print(f"Rating must be between 1 and 5, got {stars}")
+        return False
+
     movies[title]["ratings"].append(stars)
-    if reviewText:
-        movies[title]["reviews"].append(reviewText)
+
+    if review_text:
+        movies[title]["reviews"].append(review_text)
+
     return True
 
 
-def averageRating(title):
-    ratings = movies[title]["ratings"]
-    if ratings:
-        return round(sum(ratings) / len(ratings), 1)
-    else:
+def average_rating(title):
+    """Return a movie's average rating, or zero if it has no ratings."""
+    movie = movies.get(title)
+
+    if movie is None:
         return 0.0
 
+    ratings = movie["ratings"]
 
-def topMovies(count=2):
-    ranked=sorted(movies, key=averageRating, reverse=True)
+    if not ratings:
+        return 0.0
+
+    return round(sum(ratings) / len(ratings), 1)
+
+
+def top_movies(count=2):
+    """Return the highest-rated movies."""
+    ranked = sorted(
+        movies,
+        key=average_rating,
+        reverse=True,
+    )
     return ranked[:count]
 
 
-def pickFeatured():
-    global featured
-    featured = random.choice(sorted(movies))
-    return featured
+def pick_featured():
+    """Select a featured movie securely, or return None if none exist."""
+    if not movies:
+        return None
+
+    return secrets.choice(sorted(movies))
 
 
-def reviewId(title, reviewText):
-    return hashlib.md5((title + reviewText).encode()).hexdigest()[:10]
-
-def printAllReviews():
-    titles = list(movies)
-    for i in range(len(titles)):
-        print(i + 1, titles[i], averageRating(titles[i]))
+def review_id(title, review_text):
+    """Generate a shortened SHA-256 identifier for a review."""
+    review_data = (title + review_text).encode("utf-8")
+    return hashlib.sha256(review_data).hexdigest()[:10]
 
 
-def streamAddress():
-    return STREAM_HOST + ":" + str(STREAM_PORT)
+def print_all_reviews():
+    """Print each movie and its average rating."""
+    for index, title in enumerate(movies, start=1):
+        print(index, title, average_rating(title))
+
+
+def stream_address():
+    """Return the streaming host and port."""
+    return f"{STREAM_HOST}:{STREAM_PORT}"
 
 
 def main():
-    addMovie("The Long Road", "Drama", 2021)
-    addMovie("Laugh Track", "Comedy", 2019)
-    addMovie("Star Drift", "Sci-Fi", 2023)
-    rateMovie("The Long Road", 5, "Beautiful story")
-    rateMovie("The Long Road", 4, "A bit slow but worth it")
-    rateMovie("Laugh Track", 2, "Not very funny")
-    rateMovie("Star Drift", 6, "Out of range rating")
-    rateMovie("Star Drift", 4)
-    printAllReviews()
-    print("Top movies:", topMovies())
-    print("Featured today:", pickFeatured())
-    print("Review id:", reviewId("Laugh Track", "Not very funny")) # demo id
-    print("Streaming from", streamAddress())
-    print("Genres:",sorted(movie["genre"] for movie in movies.values()))
+    """Run a demonstration of the movie review system."""
+    add_movie("The Long Road", "Drama", 2021)
+    add_movie("Laugh Track", "Comedy", 2019)
+    add_movie("Star Drift", "Sci-Fi", 2023)
+
+    rate_movie("The Long Road", 5, "Beautiful story")
+    rate_movie("The Long Road", 4, "A bit slow but worth it")
+    rate_movie("Laugh Track", 2, "Not very funny")
+    rate_movie("Star Drift", 6, "Out of range rating")
+    rate_movie("Star Drift", 4)
+
+    print_all_reviews()
+    print("Top movies:", top_movies())
+    print("Featured today:", pick_featured())
+    print(
+        "Review id:",
+        review_id("Laugh Track", "Not very funny"),
+    )
+    print("Streaming from", stream_address())
+    print(
+        "Genres:",
+        sorted(movie["genre"] for movie in movies.values()),
+    )
 
 
-main()
+if __name__ == "__main__":
+    main()
